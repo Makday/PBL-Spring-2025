@@ -1,16 +1,26 @@
 import time
 import osmnx as ox
 import networkx as nx
+from math import cos, radians, sqrt
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-USER_WALK_SPEED = 1.4  # m/s
+USER_WALK_SPEED = 1.4  # meters/seconds
 USER_MAX_DISTANCE = 1680
+CHECK_RADIUS = 2000 # meters
 
 start_time = time.time()
 drive_G = ox.load_graphml("Moldova_graph_drive.graphml")
 walk_G = 0 #temporary disabled
 print("Execution to load graphs:", time.time() - start_time)
+
+def euclidean_distance(lat1, lon1, lat2, lon2):
+    mean_lat = radians((lat1 + lat2) / 2)
+    km_per_deg_lat = 111.32
+    km_per_deg_lon = 111.32 * cos(mean_lat)
+    dlat_km = (lat2 - lat1) * km_per_deg_lat
+    dlon_km = (lon2 - lon1) * km_per_deg_lon
+    return sqrt(dlat_km * dlat_km  + dlon_km * dlon_km) * 1000 # meters
 
 def calculate_path_length(path, G):
     return sum(G[u][v][0]['length'] for u, v in zip(path[:-1], path[1:]))
@@ -38,7 +48,7 @@ def plot_route(graph, route, color, ax, linestyle='solid', linewidth=2, zorder=1
         end_lat, end_lon = graph.nodes[end_node]['y'], graph.nodes[end_node]['x']
         ax.scatter(end_lon, end_lat, color='orange', s=30, zorder=10)
 
-def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_SPEED, USER_MAX_DISTANCE, ax):
+def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_SPEED, USER_MAX_DISTANCE, CHECK_RADIUS, ax):
     start_lat, start_lon = start_coords
     end_lat, end_lon = end_coords
 
@@ -57,6 +67,8 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
         min_pickup_dist = float('inf')
         best_pickup_node = None
         for node in driver_path:
+            node_data = drive_G.nodes[node]
+            if euclidean_distance(start_lat,start_lon, node_data['y'], node_data['x']) > CHECK_RADIUS: continue #check by radius
             walk_distance = nx.shortest_path_length(drive_G, source=user_start_node, target=node, weight='length')
             if walk_distance < min_pickup_dist:
                 min_pickup_dist = walk_distance
@@ -64,7 +76,10 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
 
         min_dropoff_dist = float('inf')
         best_dropoff_node = None
+        if best_pickup_node is None: continue # account for no available pickup nodes
         for node in driver_path[driver_path.index(best_pickup_node):]:
+            node_data = drive_G.nodes[node]
+            if euclidean_distance(end_lat, end_lon, node_data['y'], node_data['x']) > CHECK_RADIUS: continue #check by radius
             walk_distance = nx.shortest_path_length(drive_G, source=user_end_node, target=node, weight='length')
             if walk_distance < min_dropoff_dist:
                 min_dropoff_dist = walk_distance
@@ -148,7 +163,7 @@ fig, ax = plt.subplots(figsize=(12, 12))
 G_map = ox.graph_from_bbox((west,south,east,north), network_type='all')
 ox.plot_graph(G_map, ax=ax, node_size=0, edge_linewidth=0.5, show=False, bgcolor='lightgray')
 
-min_time, best_index = get_user_route(user_start, user_end, routes, walk_G, drive_G, USER_WALK_SPEED, USER_MAX_DISTANCE, ax)
+min_time, best_index = get_user_route(user_start, user_end, routes, walk_G, drive_G, USER_WALK_SPEED, USER_MAX_DISTANCE, CHECK_RADIUS, ax)
 
 print(f"Best driver route index: {best_index}, with user total time: {min_time:.1f}s")
 
