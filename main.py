@@ -1,5 +1,4 @@
 import time
-import numpy as np
 import osmnx as ox
 import networkx as nx
 from math import cos, radians, sqrt
@@ -13,7 +12,6 @@ CHECK_RADIUS = 2000 # meters
 start_time = time.time()
 drive_G = ox.load_graphml("Moldova_graph_drive.graphml")
 walk_G = ox.load_graphml("Moldova_graph_walk.graphml")
-
 print("Time to load graphs:", time.time() - start_time)
 
 def euclidean_distance(lat1, lon1, lat2, lon2):
@@ -54,8 +52,8 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
     start_lat, start_lon = start_coords
     end_lat, end_lon = end_coords
 
-    user_start_walk = ox.distance.nearest_nodes(walk_G, X=start_lon, Y=start_lat)
-    user_end_walk = ox.distance.nearest_nodes(walk_G, X=end_lon, Y=end_lat)
+    start_walk = ox.distance.nearest_nodes(walk_G, X=start_lon, Y=start_lat)
+    end_walk = ox.distance.nearest_nodes(walk_G, X=end_lon, Y=end_lat)
 
     ax.scatter(start_lon, start_lat, color='blue', s=50, label='User Start', zorder=5) #showing
     ax.scatter(end_lon, end_lat, color='red', s=50, label='User End', zorder=5) #showing
@@ -64,36 +62,33 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
     best_route_index = -1
     for i, route in enumerate(routes):
         driver_path = route
-        x_array = np.array([drive_G.nodes[i]['x'] for i in route], dtype=np.float64)
-        y_array = np.array([drive_G.nodes[i]['y'] for i in route], dtype=np.float64)
-        potential_nodes = ox.distance.nearest_nodes(walk_G,X = x_array,Y = y_array)
-        distance_dict_pickup = nx.single_source_dijkstra_path_length(walk_G, source = user_start_walk, cutoff=CHECK_RADIUS, weight='length')
 
+        distance_dict_pickup = nx.single_source_dijkstra_path_length(walk_G, source = start_walk, cutoff=CHECK_RADIUS, weight='length')
         min_pickup_dist = float('inf')
-        best_pickup_node = None
-        for node_id in potential_nodes:
+        pickup_node = None
+        for node_id in driver_path:
             if node_id in distance_dict_pickup:
                 walk_distance = distance_dict_pickup[node_id]
                 if walk_distance < min_pickup_dist:
                     min_pickup_dist = walk_distance
-                    best_pickup_node = node_id
-        if best_pickup_node is None: continue  # account for no available pickup nodes
+                    pickup_node = node_id
+        if pickup_node is None: continue  # account for no available pickup nodes
 
-        distance_dict_dropoff = nx.single_source_dijkstra_path_length(walk_G, source=user_end_walk, cutoff=CHECK_RADIUS, weight='length')
+        distance_dict_dropoff = nx.single_source_dijkstra_path_length(walk_G, source=end_walk, cutoff=CHECK_RADIUS, weight='length')
         min_dropoff_dist = float('inf')
-        best_dropoff_node = None
-        for node_id in potential_nodes:
+        dropoff_node = None
+        for node_id in driver_path:
             if node_id in distance_dict_dropoff:
                 walk_distance = distance_dict_dropoff[node_id]
                 if walk_distance < min_dropoff_dist:
                     min_dropoff_dist = walk_distance
-                    best_dropoff_node = node_id
-        if best_dropoff_node is None: continue # account for no available drop-off nodes
+                    dropoff_node = node_id
+        if dropoff_node is None: continue # account for no available drop-off nodes
 
-        path_pickup_to_dropoff = nx.shortest_path(drive_G, source=ox.distance.nearest_nodes(drive_G, X=walk_G.nodes[best_pickup_node]['x'], Y=walk_G.nodes[best_pickup_node]['y']), target=ox.distance.nearest_nodes(drive_G, X=walk_G.nodes[best_dropoff_node]['x'], Y=walk_G.nodes[best_dropoff_node]['y']), weight='length')
+        path_pickup_to_dropoff = nx.shortest_path(drive_G, source=pickup_node, target=dropoff_node, weight='length')
 
-        len_pick_up_path = nx.shortest_path_length(walk_G, source=user_start_walk, target=best_pickup_node, weight='length')
-        len_dropoff_to_end_path = nx.shortest_path_length(walk_G, source=best_dropoff_node, target=user_end_walk, weight='length')
+        len_pick_up_path = nx.shortest_path_length(walk_G, source=start_walk, target=pickup_node, weight='length')
+        len_dropoff_to_end_path = nx.shortest_path_length(walk_G, source=dropoff_node, target=end_walk, weight='length')
 
         pick_up_time = len_pick_up_path / USER_WALK_SPEED
         dropoff_to_end_time = len_dropoff_to_end_path / USER_WALK_SPEED
@@ -117,8 +112,8 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
         color_list = list(mcolors.TABLEAU_COLORS.values())
         color = color_list[i % len(color_list)]
 
-        path_to_pickup = nx.shortest_path(walk_G, source=user_start_walk, target=best_pickup_node,weight='length')  #showing
-        path_dropoff_to_end = nx.shortest_path(walk_G, source=best_dropoff_node, target=user_end_walk, weight='length') #showing
+        path_to_pickup = nx.shortest_path(walk_G, source=start_walk, target=pickup_node,weight='length')  #showing
+        path_dropoff_to_end = nx.shortest_path(walk_G, source=dropoff_node, target=end_walk, weight='length') #showing
 
         plot_route(drive_G, driver_path, color=color, ax=ax, linewidth=2, zorder=1)     #showing
         plot_route(walk_G, path_to_pickup, color=color, ax=ax, linestyle='dotted', linewidth=2, zorder=2, user=1)   #showing
