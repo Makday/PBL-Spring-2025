@@ -1,3 +1,4 @@
+import pickle
 import osmnx as ox
 import networkx as nx
 
@@ -7,8 +8,8 @@ CHECK_RADIUS = 2000 # meters
 DEFAULT_SPEED_LIMIT = 50  # km/h
 KMH_TO_MS = 3.6  # Conversion factor
 
-drive_G = ox.load_graphml("Moldova_graph_drive.graphml")
-walk_G = ox.load_graphml("Moldova_graph_walk.graphml")
+with open("drive_G.pkl", "rb") as f:    drive_G = pickle.load(f)
+with open("walk_G.pkl", "rb") as f:     walk_G = pickle.load(f)
 
 def get_drive_path(start_coords, end_coords, drive_G):
     start_lat, start_lon = start_coords

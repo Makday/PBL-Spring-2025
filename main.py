@@ -1,4 +1,5 @@
 import time
+import pickle
 import osmnx as ox
 import networkx as nx
 from math import cos, radians, sqrt
@@ -11,10 +12,10 @@ CHECK_RADIUS = 2000 # meters
 DEFAULT_SPEED_LIMIT = 50  # km/h
 KMH_TO_MS = 3.6  # Conversion factor
 
-start_time = time.time()
-drive_G = ox.load_graphml("Moldova_graph_drive.graphml")
-walk_G = ox.load_graphml("Moldova_graph_walk.graphml")
-print("Time to load graphs:", time.time() - start_time)
+start = time.time()
+with open("drive_G.pkl", "rb") as f:    drive_G = pickle.load(f)
+with open("walk_G.pkl", "rb") as f:     walk_G = pickle.load(f)
+print("Graphs load time:", time.time() - start)
 
 def euclidean_distance(lat1, lon1, lat2, lon2):
     mean_lat = radians((lat1 + lat2) / 2)
@@ -182,8 +183,8 @@ ox.plot_graph(G_map, ax=ax, node_size=0, edge_linewidth=0.5, show=False, bgcolor
 
 start_time = time.time()
 min_time, best_index = get_user_route(user_start, user_end, routes, walk_G, drive_G, USER_WALK_SPEED, USER_MAX_DISTANCE, CHECK_RADIUS, ax)
-
 print("Time to execute best route function:",time.time() - start_time)
+
 print(f"Best driver route index: {best_index}, with user total time: {min_time:.1f}s")
 
 ax.set_title("Driver Routes and User Connections")

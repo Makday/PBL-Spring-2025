@@ -17,6 +17,7 @@ A ride-sharing app project.
 ## To-Do
 
 - [ ] ~~Implement multithreading for route calculations~~
-- [ ] Optimize graph loading 
+- [ ] ~~Optimize graph loading~~
 - [ ] ~~Add waiting time calculation~~
 - [ ] Add rating criteria to path choosing logic
+- [ ] Integrate into a full app
