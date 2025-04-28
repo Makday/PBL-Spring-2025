@@ -8,6 +8,8 @@ import matplotlib.colors as mcolors
 USER_WALK_SPEED = 1.4  # meters/seconds
 USER_MAX_DISTANCE = 1680
 CHECK_RADIUS = 2000 # meters
+DEFAULT_SPEED_LIMIT = 50  # km/h
+KMH_TO_MS = 3.6  # Conversion factor
 
 start_time = time.time()
 drive_G = ox.load_graphml("Moldova_graph_drive.graphml")
@@ -55,6 +57,9 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
     start_walk = ox.distance.nearest_nodes(walk_G, X=start_lon, Y=start_lat)
     end_walk = ox.distance.nearest_nodes(walk_G, X=end_lon, Y=end_lat)
 
+    distance_dict_pickup = nx.single_source_dijkstra_path_length(walk_G, source=start_walk, cutoff=CHECK_RADIUS, weight='length')
+    distance_dict_dropoff = nx.single_source_dijkstra_path_length(walk_G, source=end_walk, cutoff=CHECK_RADIUS, weight='length')
+
     ax.scatter(start_lon, start_lat, color='blue', s=50, label='User Start', zorder=5) #showing
     ax.scatter(end_lon, end_lat, color='red', s=50, label='User End', zorder=5) #showing
 
@@ -63,7 +68,6 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
     for i, route in enumerate(routes):
         driver_path = route
 
-        distance_dict_pickup = nx.single_source_dijkstra_path_length(walk_G, source = start_walk, cutoff=CHECK_RADIUS, weight='length')
         min_pickup_dist = float('inf')
         pickup_node = None
         for node_id in driver_path:
@@ -74,7 +78,6 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
                     pickup_node = node_id
         if pickup_node is None: continue  # account for no available pickup nodes
 
-        distance_dict_dropoff = nx.single_source_dijkstra_path_length(walk_G, source=end_walk, cutoff=CHECK_RADIUS, weight='length')
         min_dropoff_dist = float('inf')
         dropoff_node = None
         for node_id in driver_path:
@@ -97,12 +100,12 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
         for u, v in zip(path_pickup_to_dropoff[:-1], path_pickup_to_dropoff[1:]):
             edge_data = drive_G[u][v][0]
             edge_length = edge_data['length']
-            speed_limit = edge_data.get('maxspeed', 50)
+            speed_limit = edge_data.get('maxspeed', DEFAULT_SPEED_LIMIT)
             if isinstance(speed_limit, list):
                 speed_limit = speed_limit[0]
             if isinstance(speed_limit, str):
                 speed_limit = float(speed_limit.split()[0])
-            speed_limit = speed_limit / 3.6
+            speed_limit = speed_limit / KMH_TO_MS
             driving_time += edge_length / speed_limit
 
         total_user_time = pick_up_time + driving_time + dropoff_to_end_time
