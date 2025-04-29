@@ -8,7 +8,7 @@ CHECK_RADIUS = 2000 # meters
 DEFAULT_SPEED_LIMIT = 50  # km/h
 KMH_TO_MS = 3.6  # conversion factor
 
-with open("drive_G_with_times.pkl", "rb") as f:    drive_G = pickle.load(f)
+with open("drive_G.pkl", "rb") as f:    drive_G = pickle.load(f)
 with open("walk_G.pkl", "rb") as f:     walk_G = pickle.load(f)
 
 def get_drive_path(start_coords, end_coords, drive_G):
