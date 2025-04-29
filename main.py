@@ -13,7 +13,7 @@ DEFAULT_SPEED_LIMIT = 50  # km/h
 KMH_TO_MS = 3.6  # Conversion factor
 
 start = time.time()
-with open("drive_G.pkl", "rb") as f:    drive_G = pickle.load(f)
+with open("drive_G_with_times.pkl", "rb") as f:    drive_G = pickle.load(f)
 with open("walk_G.pkl", "rb") as f:     walk_G = pickle.load(f)
 print("Graphs load time:", time.time() - start)
 
@@ -67,60 +67,23 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
     min_total_time = float('inf')
     best_route_index = -1
     for i, route in enumerate(routes):
-        driver_path = route
+        driver_nodes_set = set(route)
 
-        min_pickup_dist = float('inf')
-        pickup_node = None
-        for node_id in driver_path:
-            if node_id in distance_dict_pickup:
-                walk_distance = distance_dict_pickup[node_id]
-                if walk_distance < min_pickup_dist:
-                    min_pickup_dist = walk_distance
-                    pickup_node = node_id
-        if pickup_node is None: continue  # account for no available pickup nodes
+        pickup_candidates = [(node, dist) for node, dist in distance_dict_pickup.items() if node in driver_nodes_set]
+        if not pickup_candidates:
+            continue
+        pickup_node, len_pick_up_path = min(pickup_candidates, key=lambda x: x[1])
 
-        min_dropoff_dist = float('inf')
-        dropoff_node = None
-        for node_id in driver_path:
-            if node_id in distance_dict_dropoff:
-                walk_distance = distance_dict_dropoff[node_id]
-                if walk_distance < min_dropoff_dist:
-                    min_dropoff_dist = walk_distance
-                    dropoff_node = node_id
-        if dropoff_node is None: continue # account for no available drop-off nodes
-
-        wait_path = nx.shortest_path(drive_G, source=route[0], target=pickup_node, weight='length')
-        path_pickup_to_dropoff = nx.shortest_path(drive_G, source=pickup_node, target=dropoff_node, weight='length')
-
-        len_pick_up_path = nx.shortest_path_length(walk_G, source=start_walk, target=pickup_node, weight='length')
-        len_dropoff_to_end_path = nx.shortest_path_length(walk_G, source=dropoff_node, target=end_walk, weight='length')
+        dropoff_candidates = [(node, dist) for node, dist in distance_dict_dropoff.items() if node in driver_nodes_set]
+        if not dropoff_candidates:
+            continue
+        dropoff_node, len_dropoff_to_end_path = min(dropoff_candidates, key=lambda x: x[1])
 
         pick_up_time = len_pick_up_path / USER_WALK_SPEED
         dropoff_to_end_time = len_dropoff_to_end_path / USER_WALK_SPEED
 
-        driving_time = 0
-        for u, v in zip(path_pickup_to_dropoff[:-1], path_pickup_to_dropoff[1:]):
-            edge_data = drive_G[u][v][0]
-            edge_length = edge_data['length']
-            speed_limit = edge_data.get('maxspeed', DEFAULT_SPEED_LIMIT)
-            if isinstance(speed_limit, list):
-                speed_limit = speed_limit[0]
-            if isinstance(speed_limit, str):
-                speed_limit = float(speed_limit.split()[0])
-            speed_limit = speed_limit / KMH_TO_MS
-            driving_time += edge_length / speed_limit
-
-        wait_time = 0
-        for u, v in zip(wait_path[:-1], wait_path[1:]):
-            edge_data = drive_G[u][v][0]
-            edge_length = edge_data['length']
-            speed_limit = edge_data.get('maxspeed', DEFAULT_SPEED_LIMIT)
-            if isinstance(speed_limit, list):
-                speed_limit = speed_limit[0]
-            if isinstance(speed_limit, str):
-                speed_limit = float(speed_limit.split()[0])
-            speed_limit = speed_limit / KMH_TO_MS
-            wait_time += edge_length / speed_limit
+        wait_time = nx.shortest_path_length(drive_G, source=route[0], target=pickup_node, weight='travel_time')
+        driving_time = nx.shortest_path_length(drive_G, source=pickup_node, target=dropoff_node, weight='travel_time')
 
         total_user_time = wait_time + pick_up_time + driving_time + dropoff_to_end_time
 
@@ -132,7 +95,7 @@ def get_user_route(start_coords, end_coords, routes, walk_G, drive_G, USER_WALK_
         path_to_pickup = nx.shortest_path(walk_G, source=start_walk, target=pickup_node,weight='length')  #showing
         path_dropoff_to_end = nx.shortest_path(walk_G, source=dropoff_node, target=end_walk, weight='length') #showing
 
-        plot_route(drive_G, driver_path, color=color, ax=ax, linewidth=2, zorder=1)     #showing
+        plot_route(drive_G, route, color=color, ax=ax, linewidth=2, zorder=1)     #showing
         plot_route(walk_G, path_to_pickup, color=color, ax=ax, linestyle='dotted', linewidth=2, zorder=2, user=1)   #showing
         plot_route(walk_G, path_dropoff_to_end, color=color, ax=ax, linestyle='dotted', linewidth=2, zorder=2, user=1)  #showing
 
