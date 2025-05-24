@@ -52,7 +52,7 @@ def get_user_route(start, end):
             continue
         dropoff_node, len_dropoff_to_end_path = min(dropoff_candidates, key=lambda x: x[1])
 
-        pick_up_time = len_pick_up_path / USER_WALK_SPEED
+        pickup_time = len_pick_up_path / USER_WALK_SPEED
         dropoff_to_end_time = len_dropoff_to_end_path / USER_WALK_SPEED
 
         pickup_idx = route.index(pickup_node)
@@ -70,9 +70,10 @@ def get_user_route(start, end):
             edge_data = drive_G.get_edge_data(u, v, 0)
             driving_time += edge_data['travel_time']
 
-        total_user_time = wait_time + pick_up_time + driving_time + dropoff_to_end_time
+        total_user_time = wait_time + pickup_time + driving_time + dropoff_to_end_time
+        walk_time = pickup_time + dropoff_to_end_time
 
-        route_objects.append((i, pickup_node, dropoff_node, total_user_time, wait_time))
+        route_objects.append((i, pickup_node, dropoff_node, total_user_time, wait_time, driving_time, walk_time,  pickup_time, dropoff_to_end_time))
 
     route_objects = heapq.nsmallest(NUM_SAMPLES, route_objects, key=lambda x: x[3])
     results = []
@@ -80,7 +81,21 @@ def get_user_route(start, end):
         driver_path = get_path_coords(routes[obj[0]], drive_G)
         pickup_path = get_path_coords(pickup_paths[obj[1]], walk_G)
         dropoff_path = get_path_coords(dropoff_paths[obj[2]], walk_G)
-        results.append((driver_path, pickup_path, dropoff_path, obj[3], obj[4]))
+
+        result = {
+            "driver_path": [[lat, lon] for lat, lon in driver_path],
+            "pickup_path": [[lat, lon] for lat, lon in pickup_path],
+            "dropoff_path": [[lat, lon] for lat, lon in dropoff_path],
+            "total_user_time": obj[3],
+            "wait_time": obj[4],
+            "drive_time": obj[5],
+            "walk_time": obj[6],
+            "pickup_time": obj[7],
+            "dropoff_time": obj[8],
+        }
+
+        results.append(result)
+
     return results
 
 #   Initially, run add_route(start, end) to add a driver route to the list
@@ -89,4 +104,13 @@ def get_user_route(start, end):
 #   To get optimal driver routes for user, run get_user_route(start, end)
 #   start,end have type (lat,lon), they denote origin and destination of USER
 #   NUM_SAMPLES - constant for adjusting how many optimal routes to return (Initially is set to 5 optimal routes)
-#   get_user_route() returns a list of tuples of type (list of drivers path coordinates, list of pickup path coordinates, list of dropoff path coordinates, total time for user, wait time)
+#   get_user_route() returns a list of dictionaries, they have the following keys:
+#   driver_path         - list of lists of coordinates of driver's path
+#   pickup_path         - list of lists of coordinates of path from start to pickup
+#   dropoff_path        - list of lists of coordinates of path from dropoff to users destination
+#   total_user_time     - the sum of all times, basically total_user_time = drive_time + walk_time + wait_time
+#   wait_time           - time from drivers start to pickup point
+#   drive_time          - time from pickup to dropoff
+#   walk_time           - time of both pickup and dropoff
+#   pickup_time         - time of user reaching the pickup point
+#   dropoff_time        - time of user reaching the end of his destination from dropoff
