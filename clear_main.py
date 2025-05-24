@@ -2,6 +2,7 @@ import pickle
 import osmnx as ox
 import networkx as nx
 import heapq
+from datetime import datetime, time, timezone
 
 NUM_SAMPLES = 5 # numbers of optimal routes to be returned
 USER_WALK_SPEED = 1.4  # meters/seconds
@@ -13,8 +14,15 @@ routes = []
 with open("drive_G.pkl", "rb") as f:    drive_G = pickle.load(f)
 with open("walk_G.pkl", "rb") as f:     walk_G = pickle.load(f)
 
-def add_route(start, end):
-    routes.append(get_drive_path(start, end))
+def add_route(start, end, start_time=None):
+    path = get_drive_path(start, end)
+
+    if start_time is None:
+        today = datetime.now(timezone.utc).date()
+        start_datetime = datetime.combine(today, time(hour=10, tzinfo=timezone.utc))
+        start_time = start_datetime.isoformat()
+
+    routes.append((path, start_time))
 
 def get_drive_path(start, end):
     start_lat, start_lon = start
@@ -24,7 +32,7 @@ def get_drive_path(start, end):
     return nx.shortest_path(drive_G, source=start_node, target=end_node, weight="length")
 
 def get_path_coords(node_ids,graph):
-    coords = [(graph.nodes[node]['y'], graph.nodes[node]['x']) for node in node_ids]
+    coords = [[graph.nodes[node]['y'], graph.nodes[node]['x']] for node in node_ids]
     return coords
 
 def get_user_route(start, end):
@@ -39,7 +47,7 @@ def get_user_route(start, end):
 
     route_objects = []
 
-    for i, route in enumerate(routes):
+    for i, (route, start_time) in enumerate(routes):
         driver_nodes_set = set(route)
 
         pickup_candidates = [(node, dist) for node, dist in pickup_lengths.items() if node in driver_nodes_set]
@@ -73,25 +81,26 @@ def get_user_route(start, end):
         total_user_time = wait_time + pickup_time + driving_time + dropoff_to_end_time
         walk_time = pickup_time + dropoff_to_end_time
 
-        route_objects.append((i, pickup_node, dropoff_node, total_user_time, wait_time, driving_time, walk_time,  pickup_time, dropoff_to_end_time))
+        route_objects.append((i, pickup_node, dropoff_node, total_user_time, wait_time, driving_time, walk_time,  pickup_time, dropoff_to_end_time, start_time))
 
     route_objects = heapq.nsmallest(NUM_SAMPLES, route_objects, key=lambda x: x[3])
     results = []
     for obj in route_objects:
-        driver_path = get_path_coords(routes[obj[0]], drive_G)
+        driver_path = get_path_coords(routes[obj[0]][0], drive_G)
         pickup_path = get_path_coords(pickup_paths[obj[1]], walk_G)
         dropoff_path = get_path_coords(dropoff_paths[obj[2]], walk_G)
 
         result = {
-            "driver_path": [[lat, lon] for lat, lon in driver_path],
-            "pickup_path": [[lat, lon] for lat, lon in pickup_path],
-            "dropoff_path": [[lat, lon] for lat, lon in dropoff_path],
+            "driver_path": driver_path,
+            "pickup_path": pickup_path,
+            "dropoff_path": dropoff_path,
             "total_user_time": obj[3],
             "wait_time": obj[4],
             "drive_time": obj[5],
             "walk_time": obj[6],
             "pickup_time": obj[7],
             "dropoff_time": obj[8],
+            "start_time": obj[9]
         }
 
         results.append(result)
@@ -99,18 +108,24 @@ def get_user_route(start, end):
     return results
 
 #   Initially, run add_route(start, end) to add a driver route to the list
-#   start,end have type (lat,lon), they denote origin and destination of DRIVER
+#   start,end have type list: [lat,lon], they denote origin and destination of DRIVER
 #
 #   To get optimal driver routes for user, run get_user_route(start, end)
-#   start,end have type (lat,lon), they denote origin and destination of USER
+#   start,end have type list: [lat,lon], they denote origin and destination of USER
 #   NUM_SAMPLES - constant for adjusting how many optimal routes to return (Initially is set to 5 optimal routes)
 #   get_user_route() returns a list of dictionaries, they have the following keys:
+#
 #   driver_path         - list of lists of coordinates of driver's path
 #   pickup_path         - list of lists of coordinates of path from start to pickup
 #   dropoff_path        - list of lists of coordinates of path from dropoff to users destination
+#
 #   total_user_time     - the sum of all times, basically total_user_time = drive_time + walk_time + wait_time
+#
 #   wait_time           - time from drivers start to pickup point
 #   drive_time          - time from pickup to dropoff
 #   walk_time           - time of both pickup and dropoff
+#
 #   pickup_time         - time of user reaching the pickup point
 #   dropoff_time        - time of user reaching the end of his destination from dropoff
+#
+#   start_time          - when the driver will start driving, it's a string in ISO 8601

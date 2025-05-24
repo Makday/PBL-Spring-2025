@@ -19,5 +19,7 @@ A ride-sharing app project.
 - [ ] ~~Implement multithreading for route calculations~~
 - [ ] ~~Optimize graph loading~~
 - [ ] ~~Add waiting time calculation~~
-- [ ] Add rating criteria to path choosing logic
+- [ ] ~~Add rating criteria to path choosing logic~~ (Discarded)
+- [ ] ~~Make return type compatible with js for backend~~
+- [ ] ~~Add starting times for routes~~
 - [ ] Integrate into a full app
