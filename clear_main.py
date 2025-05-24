@@ -2,7 +2,6 @@ import pickle
 import osmnx as ox
 import networkx as nx
 import heapq
-import time
 
 NUM_SAMPLES = 5 # numbers of optimal routes to be returned
 USER_WALK_SPEED = 1.4  # meters/seconds
@@ -56,8 +55,20 @@ def get_user_route(start, end):
         pick_up_time = len_pick_up_path / USER_WALK_SPEED
         dropoff_to_end_time = len_dropoff_to_end_path / USER_WALK_SPEED
 
-        wait_time = nx.shortest_path_length(drive_G, source=route[0], target=pickup_node, weight='travel_time')
-        driving_time = nx.shortest_path_length(drive_G, source=pickup_node, target=dropoff_node, weight='travel_time')
+        pickup_idx = route.index(pickup_node)
+        dropoff_idx = route.index(dropoff_node)
+
+        wait_time = 0.0
+        for j in range(pickup_idx):
+            u, v = route[j], route[j + 1]
+            edge_data = drive_G.get_edge_data(u, v, 0)
+            wait_time += edge_data['travel_time']
+
+        driving_time = 0.0
+        for j in range(pickup_idx, dropoff_idx):
+            u, v = route[j], route[j + 1]
+            edge_data = drive_G.get_edge_data(u, v, 0)
+            driving_time += edge_data['travel_time']
 
         total_user_time = wait_time + pick_up_time + driving_time + dropoff_to_end_time
 
